@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Importar Dados{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Importar Dados</h1>
+    <div class="bg-white p-8 rounded-xl shadow-md">
+        <form action="{{ url_for('import_leads') }}" method="POST" enctype="multipart/form-data">
+            <div class="space-y-6">
+
+                <div>
+                    <label for="project_id" class="block text-sm font-medium text-gray-900">1. Selecione o Projeto de Destino</label>
+                    <select id="project_id" name="project_id" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="" disabled selected>-- Escolha um projeto --</option>
+                        {% for project in projects %}
+                        <option value="{{ project.id }}">{{ project.name }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if not projects %}
+                    <p class="mt-2 text-sm text-red-600">Nenhum projeto foi criado. <a href="{{ url_for('add_project') }}" class="font-medium text-indigo-600 hover:text-indigo-500">Crie um projeto</a> antes de importar dados.</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-medium text-gray-900">2. Instruções de Importação</h2>
+                    <ul class="list-disc list-inside mt-2 text-sm text-gray-600 space-y-1">
+                        <li>O arquivo deve ser no formato <strong>Excel (.xlsx, .xls)</strong>.</li>
+                        <li>As colunas obrigatórias são <strong>Nome</strong> (ou <strong>Entrevistado</strong>) e <strong>Telefone</strong> (ou <strong>Numero</strong>).</li>
+                        <li>Colunas como <strong>CPF</strong> e <strong>Genero</strong> serão importadas como campos adicionais.</li>
+                    </ul>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6">
+                    <label for="file-upload" class="block text-sm font-medium text-gray-700">3. Selecione o arquivo para importar:</label>
+                    <div id="drop-zone" class="mt-2 flex items-center p-4 border-2 border-gray-300 border-dashed rounded-md transition-colors duration-300 ease-in-out">
+                        <div id="upload-icon-container" class="flex-shrink-0">
+                             <i id="upload-icon" class="fas fa-file-excel h-12 w-12 text-gray-400"></i>
+                        </div>
+                        <div class="ml-4">
+                            <label for="file-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500">
+                                <span>Carregar um arquivo</span>
+                                <input id="file-upload" name="file" type="file" class="sr-only" required accept=".xlsx,.xls,.csv">
+                            </label>
+                            <p class="text-xs text-gray-500" id="file-name-display">Nenhum arquivo selecionado</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-end">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md" {% if not projects %}disabled{% endif %}>
+                    <i class="fas fa-upload mr-2"></i> Iniciar Importação
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-upload');
+    const fileNameDisplay = document.getElementById('file-name-display');
+    const uploadIcon = document.getElementById('upload-icon');
+
+    function handleFileSelect(file) {
+        if (file) {
+            fileNameDisplay.textContent = file.name;
+            fileNameDisplay.classList.add('font-semibold');
+            uploadIcon.classList.remove('fa-file-excel', 'text-gray-400');
+            uploadIcon.classList.add('fa-check-circle', 'text-green-500');
+            dropZone.classList.add('border-green-500', 'bg-green-50');
+            dropZone.classList.remove('border-gray-300', 'border-indigo-500');
+        }
+    }
+
+    fileInput.addEventListener('change', function () {
+        if (this.files && this.files.length > 0) {
+            handleFileSelect(this.files[0]);
+        }
+    });
+
+    // Eventos de Drag & Drop
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, false);
+    });
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('border-indigo-500', 'bg-indigo-50'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('border-indigo-500', 'bg-indigo-50'), false);
+    });
+
+    dropZone.addEventListener('drop', function (e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+            fileInput.files = files;
+            // Dispara o evento 'change' manualmente para que a lógica de feedback visual seja ativada
+            const event = new Event('change');
+            fileInput.dispatchEvent(event);
+        }
+    }, false);
+});
+</script>
+{% endblock %}

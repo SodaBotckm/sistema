@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Projetos{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Projetos</h1>
+    {% if session.role == 'admin' %}
+    <a href="{{ url_for('add_project') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+        <i class="fas fa-plus mr-2"></i> Adicionar Projeto
+    </a>
+    {% endif %}
+</div>
+<div class="bg-white rounded-xl shadow-md overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left">Nome do Projeto</th>
+                <th class="px-6 py-3 text-left">Data de Início</th>
+                <th class="px-6 py-3 text-left">Data de Fim</th>
+                <th class="px-6 py-3 text-left">Total de Dados</th>
+                <th class="px-6 py-3 text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for project in projects %}
+            <tr>
+                <td class="px-6 py-4 font-medium text-gray-900">
+                    <a href="{{ url_for('project_report', project_id=project.id) }}" class="text-indigo-600 hover:underline">
+                        {{ project.name }}
+                    </a>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-500">{{ project.start_date or 'N/A' }}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">{{ project.end_date or 'N/A' }}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">{{ project.lead_count }}</td>
+                <td class="px-6 py-4 text-center space-x-4">
+                    {% if session.role == 'admin' %}
+                    <a href="{{ url_for('edit_project', project_id=project.id) }}" title="Editar"><i class="fas fa-edit"></i></a>
+                    <button onclick="openDeleteModal('{{ project.id }}', '{{ project.name }}')" title="Excluir"><i class="fas fa-trash"></i></button>
+                    {% else %}
+                    <span>N/A</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

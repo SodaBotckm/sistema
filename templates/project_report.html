@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Relatório do Projeto: {{ project.name }}{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <div>
+        <a href="{{ url_for('projects') }}" class="text-sm text-indigo-600 hover:underline">&larr; Voltar para Projetos</a>
+        <h1 class="text-3xl font-bold text-gray-800">Relatório: {{ project.name }}</h1>
+    </div>
+    <a href="{{ url_for('export_reports_pdf') }}?project_id={{ project.id }}" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+        <i class="fas fa-file-pdf mr-2"></i> Baixar como PDF
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+    <div class="bg-white p-6 rounded-xl shadow-md">
+        <h2 class="text-xl font-semibold mb-4 text-center">Distribuição de Status (Projeto)</h2>
+        <div class="h-80 flex justify-center"><canvas id="statusChartProject"></canvas></div>
+    </div>
+    <div class="bg-white p-6 rounded-xl shadow-md">
+        <h2 class="text-xl font-semibold mb-6 text-center">Performance dos Operadores (Projeto)</h2>
+        <div class="grid grid-cols-1 gap-8">
+            {% if operator_charts_data %}
+                {% for username, chart_data in operator_charts_data.items() %}
+                <div class="p-4 border rounded-lg">
+                    <h3 class="text-lg font-medium text-center mb-4">{{ username }}</h3>
+                    <div class="h-64"><canvas id="operatorChart-project-{{ loop.index }}"></canvas></div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-gray-500 col-span-full">Nenhuma atividade registrada neste projeto.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const chartColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#6B7280'].reverse();
+
+    new Chart(document.getElementById('statusChartProject').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: {{ status_distribution.labels|tojson }}, datasets: [{ data: {{ status_distribution.data|tojson }}, backgroundColor: chartColors, hoverOffset: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+    });
+
+    const operatorChartsData = {{ operator_charts_data|tojson }};
+    let chartIndex = 1;
+    for (const username in operatorChartsData) {
+        const chartData = operatorChartsData[username];
+        const canvasId = `operatorChart-project-${chartIndex}`;
+        const ctx = document.getElementById(canvasId);
+        if (ctx) {
+            new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Total',
+                        data: chartData.data,
+                        backgroundColor: chartColors,
+                        borderColor: chartColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+        chartIndex++;
+    }
+});
+</script>
+{% endblock %}

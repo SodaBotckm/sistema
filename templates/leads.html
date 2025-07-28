@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Dados{% endblock %}
+{% set status_colors = {
+    'pending': 'bg-blue-100 text-blue-800', 'in_use': 'bg-yellow-100 text-yellow-800',
+    'completed': 'bg-green-100 text-green-800', 'no_answer': 'bg-red-100 text-red-800',
+    'scheduled': 'bg-purple-100 text-purple-800', 'busy': 'bg-orange-100 text-orange-800',
+    'not_interested': 'bg-gray-200 text-gray-800', 'other': 'bg-gray-100 text-gray-600'
+} %}
+
+{% block content %}
+<div class="sticky top-0 z-20 bg-gray-100 pt-6 pb-4 -mx-6 px-6 mb-6 border-b">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Gerenciar Dados</h1>
+            <p class="text-gray-500">Visualize, filtre e gerencie todos os dados da sua operação.</p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{{ url_for('agendamentos') }}" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors"><i class="fas fa-calendar-alt mr-2"></i> Ver Agendamentos</a>
+            <a href="{{ url_for('import_leads') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors"><i class="fas fa-file-import mr-2"></i> Importar</a>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow-md">
+        <form method="GET" action="{{ url_for('leads') }}" id="filter-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+                <label for="search" class="text-sm font-medium text-gray-700">Nome ou Telefone</label>
+                <input type="text" name="search" id="search" placeholder="Buscar..." value="{{ filters.search or '' }}" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+                <label for="project_id" class="text-sm font-medium text-gray-700">Projeto</label>
+                <select name="project_id" id="project_id" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Todos</option>
+                    {% for p in all_projects %}
+                    <option value="{{ p.id }}" {% if filters.project_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="operator" class="text-sm font-medium text-gray-700">Operador</label>
+                <select name="operator" id="operator" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Todos</option>
+                    {% for op in operators %}<option value="{{ op.username }}" {% if filters.operator == op.username %}selected{% endif %}>{{ op.username }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="status" class="text-sm font-medium text-gray-700">Status</label>
+                <select name="status" id="status" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Todos</option>
+                    {% for key, value in LEAD_STATUS.items() %}<option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ value }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="flex space-x-2 items-end">
+                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Filtrar</button>
+                <a href="{{ url_for('leads') }}" class="w-full text-center bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Limpar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="bg-white p-4 rounded-xl shadow-md mb-6 flex justify-between items-center">
+    <div class="flex space-x-3">
+        {% if session.role == 'admin' %}
+        <button id="deleteSelectedBtn" disabled class="bg-gray-300 text-gray-500 font-bold py-2 px-4 rounded-lg cursor-not-allowed transition-colors"><i class="fas fa-trash-alt mr-2"></i> Excluir (<span id="selected-delete-count">0</span>)</button>
+        {% endif %}
+        <button id="assignSelectedBtn" disabled class="bg-gray-300 text-gray-500 font-bold py-2 px-4 rounded-lg cursor-not-allowed transition-colors"><i class="fas fa-user-plus mr-2"></i> Atribuir (<span id="selected-assign-count">0</span>)</button>
+    </div>
+    <a href="{{ url_for('export_leads', **request.args) }}" id="export-link" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors"><i class="fas fa-file-excel mr-2"></i> Exportar Resultados</a>
+</div>
+
+<div class="bg-white rounded-xl shadow-md overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 w-12"><input type="checkbox" id="selectAllCheckbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome / Telefone</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Projeto</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operador</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for lead in leads %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4"><input type="checkbox" name="lead_id" value="{{ lead.id }}" class="lead-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"></td>
+                <td class="px-4 py-4 font-mono text-sm text-gray-600">{{ lead.id }}</td>
+                <td class="px-6 py-4">
+                    <div class="font-medium text-gray-900">{{ lead.name }}</div>
+                    <div class="text-gray-500">{{ lead.phone }}</div>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-700 font-medium">{{ lead.project_name or 'N/A' }}</td>
+                <td class="px-6 py-4"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ status_colors.get(lead.status, '') }}">{{ LEAD_STATUS.get(lead.status, lead.status) }}</span></td>
+                <td class="px-6 py-4 text-sm text-gray-800">{{ lead.operator or 'Não atribuído' }}</td>
+                <td class="px-6 py-4 text-center text-sm font-medium space-x-4">
+                    {% if lead.operator and session.role in ['admin', 'gestor'] %}
+                    <form action="{{ url_for('unassign_lead', lead_id=lead.id) }}" method="POST" class="inline" onsubmit="return confirm('Tem certeza que deseja desatribuir este dado?');">
+                        <button type="submit" class="text-yellow-600 hover:text-yellow-900" title="Desatribuir Operador"><i class="fas fa-user-slash"></i></button>
+                    </form>
+                    {% endif %}
+                    {% if session.role == 'admin' %}
+                    <a href="{{ url_for('edit_lead', lead_id=lead.id) }}" class="text-green-600 hover:text-green-900" title="Editar Dado"><i class="fas fa-edit"></i></a>
+                    <form action="{{ url_for('delete_lead', lead_id=lead.id) }}" method="POST" class="inline" onsubmit="return confirm('Tem certeza que deseja excluir este dado?');">
+                        <button type="submit" class="text-red-600 hover:text-red-900" title="Excluir Dado"><i class="fas fa-trash"></i></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="px-6 py-12 text-center text-gray-500">Nenhum dado encontrado com os filtros aplicados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if pagination and pagination.total_pages > 1 %}
+<div class="mt-6 flex items-center justify-between">
+    <div class="text-sm text-gray-700">
+        Página <span class="font-medium">{{ pagination.page }}</span> de <span class="font-medium">{{ pagination.total_pages }}</span>
+    </div>
+    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+        <a href="{{ url_for('leads', page=pagination.page - 1, **request.args.to_dict()) if pagination.has_prev else '#' }}"
+           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium {{ 'text-gray-500 hover:bg-gray-50' if pagination.has_prev else 'text-gray-300 cursor-not-allowed' }}">
+            <i class="fas fa-chevron-left h-5 w-5"></i>
+        </a>
+        {% for p in range(1, pagination.total_pages + 1) %}
+            {% if p == pagination.page %}
+            <span class="relative z-10 inline-flex items-center px-4 py-2 border border-indigo-500 bg-indigo-50 text-sm font-medium text-indigo-600">{{ p }}</span>
+            {% elif p > pagination.page - 3 and p < pagination.page + 3 %}
+            <a href="{{ url_for('leads', page=p, **request.args.to_dict()) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">{{ p }}</a>
+            {% elif p == 1 or p == pagination.total_pages %}
+                 {% if p == 1 and pagination.page > 4 %}
+                    <a href="{{ url_for('leads', page=1, **request.args.to_dict()) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">1</a>
+                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                {% elif p == pagination.total_pages and pagination.page < pagination.total_pages - 3 %}
+                     <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                    <a href="{{ url_for('leads', page=pagination.total_pages, **request.args.to_dict()) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">{{ pagination.total_pages }}</a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+        <a href="{{ url_for('leads', page=pagination.page + 1, **request.args.to_dict()) if pagination.has_next else '#' }}"
+           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium {{ 'text-gray-500 hover:bg-gray-50' if pagination.has_next else 'text-gray-300 cursor-not-allowed' }}">
+            <i class="fas fa-chevron-right h-5 w-5"></i>
+        </a>
+    </nav>
+</div>
+{% endif %}
+
+<div id="assignModal" class="fixed z-50 inset-0 overflow-y-auto hidden">
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="closeAssignModal()"></div>
+        <div class="bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full p-6 z-10">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Atribuir Dados Selecionados</h3>
+                <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600 mb-4">Selecione o operador para atribuir os <strong id="assign-modal-count">0</strong> dados selecionados.</p>
+                <select id="assignOperatorSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">-- Escolha um operador --</option>
+                    {% for op_user in operators %}
+                    <option value="{{ op_user.id }}">{{ op_user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeAssignModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                <button type="button" onclick="confirmAssign()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">Atribuir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const leadCheckboxes = document.querySelectorAll('.lead-checkbox');
+    const assignBtn = document.getElementById('assignSelectedBtn');
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const assignCountSpan = document.getElementById('selected-assign-count');
+    const deleteCountSpan = document.getElementById('selected-delete-count');
+    const assignModal = document.getElementById('assignModal');
+    const assignModalCount = document.getElementById('assign-modal-count');
+    const assignOperatorSelect = document.getElementById('assignOperatorSelect');
+
+    function getSelectedLeadIds() {
+        return Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
+    }
+
+    function updateActionButtons() {
+        const selectedCount = getSelectedLeadIds().length;
+        const isAnySelected = selectedCount > 0;
+
+        if (assignCountSpan) assignCountSpan.textContent = selectedCount;
+        if (deleteCountSpan) deleteCountSpan.textContent = selectedCount;
+
+        const buttons = [assignBtn, deleteBtn].filter(btn => btn);
+
+        buttons.forEach(btn => {
+            if (isAnySelected) {
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                if (btn.id === 'assignSelectedBtn') {
+                    btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700');
+                } else if (btn.id === 'deleteSelectedBtn') {
+                    btn.classList.add('bg-red-600', 'text-white', 'hover:bg-red-700');
+                }
+            } else {
+                btn.disabled = true;
+                btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                btn.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'bg-red-600', 'hover:bg-red-700');
+            }
+        });
+    }
+
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', () => {
+            leadCheckboxes.forEach(cb => { cb.checked = selectAllCheckbox.checked; });
+            updateActionButtons();
+        });
+    }
+
+    leadCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            selectAllCheckbox.checked = Array.from(leadCheckboxes).every(c => c.checked);
+            updateActionButtons();
+        });
+    });
+
+    // --- Lógica para Atribuir em Massa ---
+    window.openAssignModal = function() {
+        const selectedCount = getSelectedLeadIds().length;
+        if (selectedCount > 0) {
+            assignModalCount.textContent = selectedCount;
+            assignModal.classList.remove('hidden');
+        }
+    }
+    window.closeAssignModal = () => assignModal.classList.add('hidden');
+    if(assignBtn) assignBtn.addEventListener('click', openAssignModal);
+
+    window.confirmAssign = async function() {
+        const leadIds = getSelectedLeadIds();
+        const operatorId = assignOperatorSelect.value;
+        if (!operatorId) {
+            alert('Por favor, selecione um operador.');
+            return;
+        }
+        try {
+            const response = await fetch("{{ url_for('assign_bulk_leads') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lead_ids: leadIds, operator_id: operatorId })
+            });
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                const data = await response.json();
+                alert('Erro: ' + (data.message || 'Não foi possível atribuir os dados.'));
+            }
+        } catch (error) {
+            alert('Ocorreu uma falha na comunicação com o servidor.');
+        }
+    }
+
+    // --- Lógica para Excluir em Massa ---
+    if(deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+            const leadIds = getSelectedLeadIds();
+            if (leadIds.length === 0) return;
+
+            if (confirm(`Tem certeza que deseja excluir os ${leadIds.length} dados selecionados? Esta ação não pode ser desfeita.`)) {
+                try {
+                    const response = await fetch("{{ url_for('delete_bulk_leads') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lead_ids: leadIds })
+                    });
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        const data = await response.json();
+                        alert('Erro: ' + (data.message || 'Não foi possível excluir os dados.'));
+                    }
+                } catch (error) {
+                    alert('Ocorreu uma falha na comunicação com o servidor.');
+                }
+            }
+        });
+    }
+
+    // Inicializar estado dos botões no carregamento da página
+    updateActionButtons();
+});
+</script>
+{% endblock %}

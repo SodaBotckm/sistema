@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Editar Projeto{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Editar Projeto</h1>
+    <div class="bg-white p-8 rounded-xl shadow-md">
+        <form action="{{ url_for('edit_project', project_id=project.id) }}" method="POST" class="space-y-6">
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700">Nome do Projeto</label>
+                <input type="text" id="name" name="name" value="{{ project.name }}" required class="mt-1 block w-full">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="start_date" class="block text-sm font-medium text-gray-700">Data de Início</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ project.start_date or '' }}" class="mt-1 block w-full">
+                </div>
+                <div>
+                    <label for="end_date" class="block text-sm font-medium text-gray-700">Data de Fim</label>
+                    <input type="date" id="end_date" name="end_date" value="{{ project.end_date or '' }}" class="mt-1 block w-full">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <a href="{{ url_for('projects') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</a>
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">Salvar Alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

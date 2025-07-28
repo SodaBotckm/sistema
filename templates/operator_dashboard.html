@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Painel do Operador{% endblock %}
+
+{% block content %}
+<div x-data="operatorPanel()">
+    <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+        <h1 class="text-3xl font-bold text-gray-900">Meu Painel de Trabalho</h1>
+        <div class="flex space-x-4 items-center bg-white p-3 rounded-lg shadow-sm">
+            <div class="text-center">
+                <p class="text-xs text-gray-500 uppercase">Tempo</p>
+                <p class="text-2xl font-mono font-bold" x-text="timer"></p>
+            </div>
+            <div class="border-l h-10"></div>
+            <div class="text-center">
+                <p class="text-xs text-gray-500 uppercase">Fila</p>
+                <p class="text-2xl font-bold" x-text="pendingCount"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-700 mb-3">Sua Produtividade Hoje</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {% for status, count in completed_today_stats.items() %}
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm font-medium text-gray-500">{{ status }}</p>
+                <p class="text-2xl font-bold text-gray-800">{{ count }}</p>
+            </div>
+            {% else %}
+            <p class="text-gray-500 col-span-full text-center py-4">Você ainda não finalizou nenhum dado hoje.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div id="lead-container">
+        {% if lead %}
+        <div class="bg-white rounded-xl shadow-lg p-8 max-w-4xl mx-auto">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h2 class="text-3xl font-bold text-indigo-800" x-text="lead.name"></h2>
+                    <p class="text-xl text-gray-600 mt-1"><i class="fas fa-phone mr-2 text-gray-400"></i><span x-text="lead.phone"></span></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-500">ID do Dado</p>
+                    <p class="font-mono text-lg text-gray-800" x-text="lead.id"></p>
+                </div>
+            </div>
+            <hr class="my-6">
+            <form id="complete-form" @submit.prevent="submitForm" x-ref="form" method="POST">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="status" class="block text-sm font-medium text-gray-700">Finalizar como:</label>
+                            <select id="status" name="status" x-model="status" required class="mt-1 block w-full text-lg py-2 border-gray-300 rounded-md">
+                                <option value="" disabled>-- Escolha um status --</option>
+                                {% for key, value in LEAD_STATUS.items() if key not in ['pending', 'in_use'] %}
+                                <option value="{{ key }}">{{ value }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div x-show="status === 'scheduled'" x-transition>
+                            <label for="scheduled_date" class="block text-sm font-medium text-gray-700">Data do Agendamento:</label>
+                            <input type="date" id="scheduled_date" name="scheduled_date" x-model="scheduledDate" :required="status === 'scheduled'" class="mt-1 block w-full border-gray-300 rounded-md">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700">Observações <span x-show="status === 'other'" class="text-red-500">*</span></label>
+                        <textarea id="notes" name="notes" rows="5" class="mt-1 shadow-sm block w-full sm:text-sm border-gray-300 rounded-md" :required="status === 'other'" placeholder="Se necessário, adicione uma observação..."></textarea>
+                    </div>
+                </div>
+                <div class="mt-8 flex justify-end">
+                    <button type="submit" class="btn btn-primary text-base py-3 px-6" :disabled="submitting">
+                        <span x-show="!submitting">Finalizar e Ir para o Próximo</span>
+                        <span x-show="submitting"><i class="fas fa-spinner fa-spin mr-2"></i> Finalizando...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% else %}
+        <div class="text-center bg-white rounded-xl shadow-lg p-12 max-w-2xl mx-auto">
+            <i class="fas fa-check-circle text-6xl text-green-500"></i>
+            <h2 class="mt-6 text-2xl font-bold text-gray-800">Parabéns!</h2>
+            <p class="mt-2 text-gray-600">Você não tem mais dados pendentes na sua fila. Bom trabalho!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    function operatorPanel() {
+        return {
+            lead: {{ lead|tojson|safe if lead else 'null' }},
+            pendingCount: {{ pending_count or 0 }},
+            status: '',
+            scheduledDate: '',
+            submitting: false,
+            timer: '00:00',
+            seconds: 0,
+            timerInterval: null,
+            init() {
+                this.startTimer();
+                const today = new Date().toISOString().split('T')[0];
+                const dateInput = document.getElementById('scheduled_date');
+                if(dateInput) dateInput.setAttribute('min', today);
+            },
+            startTimer() {
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                this.seconds = 0;
+                this.timerInterval = setInterval(() => {
+                    this.seconds++;
+                    const min = Math.floor(this.seconds / 60).toString().padStart(2, '0');
+                    const sec = (this.seconds % 60).toString().padStart(2, '0');
+                    this.timer = `${min}:${sec}`;
+                }, 1000);
+            },
+            async submitForm() {
+                this.submitting = true;
+                const formData = new FormData(this.$refs.form);
+                try {
+                    const response = await fetch(`/leads/${this.lead.id}/complete`, { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Falha ao finalizar.');
+                    if (data.status === 'ok') {
+                        this.lead = data.lead;
+                        this.pendingCount = data.pending_count;
+                        this.resetForm();
+                        this.startTimer();
+                        if(!data.lead) window.location.reload();
+                    } else {
+                        window.location.reload();
+                    }
+                } catch (error) {
+                    alert(`Erro: ${error.message}`);
+                } finally {
+                    this.submitting = false;
+                }
+            },
+            resetForm() { this.status = ''; this.scheduledDate = ''; this.$refs.form.reset(); }
+        }
+    }
+</script>
+{% endblock %}

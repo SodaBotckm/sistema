@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Principal{% endblock %}
+{% set status_colors = {
+    'Concluído': 'border-green-500', 'Não Atendeu': 'border-red-500', 'Agendado': 'border-purple-500',
+    'Ocupado': 'border-orange-500', 'Não Interessado': 'border-gray-500', 'Outro': 'border-yellow-500'
+} %}
+{% set status_icons = {
+    'Concluído': 'fa-check-circle text-green-500', 'Não Atendeu': 'fa-phone-slash text-red-500', 'Agendado': 'fa-calendar-check text-purple-500',
+    'Ocupado': 'fa-stopwatch text-orange-500', 'Não Interessado': 'fa-ban text-gray-500', 'Outro': 'fa-question-circle text-yellow-500'
+} %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Dashboard Principal</h1>
+    <p class="text-gray-600">Bem-vindo(a) de volta, {{ session.username }}! Aqui está o resumo da sua operação.</p>
+</div>
+
+<h2 class="text-xl font-semibold text-gray-700 mb-4">Funil de Dados Ativos</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+    <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">Pendentes</p>
+                <p class="text-3xl font-bold text-gray-800">{{ stats.pending_leads }}</p>
+            </div>
+            <div class="bg-blue-100 p-3 rounded-full"><i class="fas fa-inbox text-2xl text-blue-500"></i></div>
+        </div>
+    </div>
+    <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-yellow-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">Em Trabalho</p>
+                <p class="text-3xl font-bold text-gray-800">{{ stats.in_work_leads }}</p>
+            </div>
+            <div class="bg-yellow-100 p-3 rounded-full"><i class="fas fa-headset text-2xl text-yellow-500"></i></div>
+        </div>
+    </div>
+</div>
+
+<h2 class="text-xl font-semibold text-gray-700 mb-4">Resumo de Dados Finalizados (Geral)</h2>
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-10">
+    {% for status, count in stats.finalized_by_status.items() %}
+    <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 {{ status_colors.get(status, 'border-gray-400') }}">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 uppercase">{{ status }}</p>
+                <p class="text-3xl font-bold text-gray-800">{{ count }}</p>
+            </div>
+            <div class="text-3xl"><i class="fas {{ status_icons.get(status, 'fa-question-circle') }}"></i></div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-gray-500 col-span-full">Nenhum dado foi finalizado ainda.</p>
+    {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="bg-white p-6 rounded-xl shadow-sm">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Produtividade Diária (Finalizados Hoje)</h2>
+        <div class="space-y-4">
+            {% for op in stats.daily_productivity %}
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg mr-4">{{ op.username[0]|upper }}</div>
+                    <span class="font-medium text-gray-800">{{ op.username }}</span>
+                </div>
+                <span class="font-bold text-xl text-gray-900 bg-gray-100 px-3 py-1 rounded-lg">{{ op.count }}</span>
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-4">Nenhum dado finalizado hoje.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow-sm">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Dados por Projeto</h2>
+        <div class="space-y-4">
+            {% set total_leads = (stats.pending_leads + stats.in_work_leads + stats.finalized_by_status.values()|sum) %}
+            {% for project in stats.leads_per_project %}
+            <div>
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm font-medium text-gray-700">{{ project.name }}</span>
+                    <span class="text-sm font-medium text-gray-500">{{ project.count }}</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ (project.count / total_leads * 100) if total_leads > 0 else 0 }}%"></div>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-4">Nenhum projeto encontrado.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
